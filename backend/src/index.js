@@ -7,7 +7,8 @@ const { getAuthUrl, getTokens } = require('./auth');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json());
 
 // In-memory token store (we'll upgrade this later)
@@ -30,10 +31,10 @@ app.get('/auth/google/callback', async (req, res) => {
     const tokens = await getTokens(code);
     // Store tokens with a simple key for now
     tokenStore['user'] = tokens;
-    res.redirect('http://localhost:5173?auth=success');
+    res.redirect(`${FRONTEND_URL}?auth=success`);
   } catch (err) {
     console.error('Auth error:', err);
-    res.redirect('http://localhost:5173?auth=error');
+    res.redirect(`${FRONTEND_URL}?auth=error`);
   }
 });
 
