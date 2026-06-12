@@ -9,7 +9,7 @@ function App() {
 
   useEffect(() => {
     // Check if user is logged in when app loads
-    fetch('http://localhost:3001/auth/status')
+    fetch(`${import.meta.env.VITE_API_URL}/auth/status`)
       .then(res => res.json())
       .then(data => setIsAuthenticated(data.isAuthenticated))
       .catch(() => setIsAuthenticated(false))
