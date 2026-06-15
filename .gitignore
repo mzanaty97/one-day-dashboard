@@ -8,3 +8,4 @@ frontend/dist/
 *.log
 backend/google-credentials.json
 backend/gcp-oauth.keys.json
+backend/tokens.json

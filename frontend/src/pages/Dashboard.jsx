@@ -281,14 +281,22 @@ export default function Dashboard() {
 
   function loadCalendar() {
     fetch(`${API}/api/calendar`, { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => {
+        const data = await r.json()
+        if (!r.ok) throw new Error(data.error || r.statusText)
+        return data
+      })
       .then(setEvents)
       .catch(() => setError('Could not load calendar'))
   }
 
   useEffect(() => {
     fetch(`${API}/api/emails`, { credentials: 'include' })
-      .then(r => r.json())
+      .then(async r => {
+        const data = await r.json()
+        if (!r.ok) throw new Error(data.error || r.statusText)
+        return data
+      })
       .then(setEmails)
       .catch(() => setError('Could not load emails'))
 

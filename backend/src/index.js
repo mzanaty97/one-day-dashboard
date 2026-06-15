@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const { getAuthUrl, getTokens, createAuthenticatedClient } = require('./auth');
@@ -12,8 +14,18 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json());
 
-// In-memory token store (we'll upgrade this later)
-const tokenStore = {};
+// Token store — persisted to tokens.json so sessions survive server restarts
+const TOKENS_FILE = path.join(__dirname, '../tokens.json');
+let tokenStore = {};
+try {
+  tokenStore = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf8'));
+} catch (_) {
+  // File doesn't exist or is invalid JSON — start fresh
+}
+
+function saveTokenStore() {
+  fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokenStore), 'utf8');
+}
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'One Day API is running' });
@@ -32,6 +44,7 @@ app.get('/auth/google/callback', async (req, res) => {
     const tokens = await getTokens(code);
     // Store tokens with a simple key for now
     tokenStore['user'] = tokens;
+    saveTokenStore();
     res.redirect(`${FRONTEND_URL}?auth=success`);
   } catch (err) {
     console.error('Auth error:', err);
@@ -46,6 +59,7 @@ app.get('/auth/status', (req, res) => {
 
 app.post('/auth/logout', (req, res) => {
   delete tokenStore['user'];
+  saveTokenStore();
   res.json({ success: true });
 });
 
@@ -110,11 +124,14 @@ app.post('/api/calendar/events', async (req, res) => {
 
     const isAllDay = !time;
     const tz = timeZone || 'UTC';
-    const startDateTime = `${date}T${time}:00`;
-    const endDT = new Date(`${date}T${time}:00`);
-    endDT.setHours(endDT.getHours() + 1);
-    const pad = n => String(n).padStart(2, '0');
-    const endDateTime = `${endDT.getFullYear()}-${pad(endDT.getMonth() + 1)}-${pad(endDT.getDate())}T${pad(endDT.getHours())}:${pad(endDT.getMinutes())}:00`;
+    let startDateTime, endDateTime;
+    if (!isAllDay) {
+      startDateTime = `${date}T${time}:00`;
+      const endDT = new Date(`${date}T${time}:00`);
+      endDT.setHours(endDT.getHours() + 1);
+      const pad = n => String(n).padStart(2, '0');
+      endDateTime = `${endDT.getFullYear()}-${pad(endDT.getMonth() + 1)}-${pad(endDT.getDate())}T${pad(endDT.getHours())}:${pad(endDT.getMinutes())}:00`;
+    }
 
     const event = {
       summary: title,
@@ -140,6 +157,13 @@ app.post('/api/calendar/events', async (req, res) => {
     console.error('Create event error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// SPA fallback — serve frontend build for any non-API route
+const frontendDist = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDist));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
 app.listen(PORT, () => {
