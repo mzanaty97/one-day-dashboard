@@ -44,6 +44,11 @@ app.get('/auth/status', (req, res) => {
   res.json({ isAuthenticated });
 });
 
+app.post('/auth/logout', (req, res) => {
+  delete tokenStore['user'];
+  res.json({ success: true });
+});
+
 app.get('/api/emails', async (req, res) => {
   if (!tokenStore['user']) return res.status(401).json({ error: 'Not authenticated' });
   try {

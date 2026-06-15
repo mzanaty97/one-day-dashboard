@@ -273,6 +273,11 @@ export default function Dashboard() {
   const [events, setEvents] = useState(null)
   const [error, setError] = useState(null)
 
+  async function handleLogout() {
+    await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' })
+    window.location.href = '/'
+  }
+
   function loadCalendar() {
     fetch(`${API}/api/calendar`, { credentials: 'include' })
       .then(r => r.json())
@@ -294,9 +299,25 @@ export default function Dashboard() {
 
   return (
     <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
-      <header style={{ marginBottom: '32px' }}>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: '700' }}>{greeting} ☀️</h1>
-        <p style={{ color: '#888', marginTop: '4px' }}>Here's your day at a glance</p>
+      <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: '700' }}>{greeting} ☀️</h1>
+          <p style={{ color: '#888', marginTop: '4px' }}>Here's your day at a glance</p>
+        </div>
+        <button
+          onClick={handleLogout}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: '1px solid #2a2a3a',
+            background: 'transparent',
+            color: '#888',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+          }}
+        >
+          Log out
+        </button>
       </header>
 
       {error && <p style={{ color: '#f87171', marginBottom: '16px' }}>{error}</p>}
