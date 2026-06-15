@@ -9,3 +9,4 @@ frontend/dist/
 backend/google-credentials.json
 backend/gcp-oauth.keys.json
 backend/tokens.json
+backend/budget.json
