@@ -162,7 +162,7 @@ app.post('/api/calendar/events', async (req, res) => {
 // SPA fallback — serve frontend build for any non-API route
 const frontendDist = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendDist));
-app.get('*', (req, res) => {
+app.get('/*splat', (req, res) => {
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
