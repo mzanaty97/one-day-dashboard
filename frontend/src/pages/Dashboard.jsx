@@ -293,6 +293,12 @@ export default function Dashboard() {
       .catch(() => setError('Could not load emails'))
 
     loadCalendar()
+
+    const keepAlive = setInterval(() => {
+      fetch(`${API}/health`).catch(() => {})
+    }, 10 * 60 * 1000)
+
+    return () => clearInterval(keepAlive)
   }, [])
 
   const hour = new Date().getHours()

@@ -111,7 +111,10 @@ app.post('/api/calendar/events', async (req, res) => {
     const isAllDay = !time;
     const tz = timeZone || 'UTC';
     const startDateTime = `${date}T${time}:00`;
-    const endDateTime = `${date}T${time}:00`;
+    const endDT = new Date(`${date}T${time}:00`);
+    endDT.setHours(endDT.getHours() + 1);
+    const pad = n => String(n).padStart(2, '0');
+    const endDateTime = `${endDT.getFullYear()}-${pad(endDT.getMonth() + 1)}-${pad(endDT.getDate())}T${pad(endDT.getHours())}:${pad(endDT.getMinutes())}:00`;
 
     const event = {
       summary: title,
