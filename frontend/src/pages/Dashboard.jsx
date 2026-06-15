@@ -65,6 +65,7 @@ function AddReminderCard({ onCreated }) {
     try {
       const body = {
         title, date, time, notes, repeat,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         frequency: repeat ? frequency : undefined,
         endDate: repeat && endType === 'until' ? endDate : undefined,
         count: repeat && endType === 'count' ? parseInt(count, 10) : undefined,

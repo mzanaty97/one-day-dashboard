@@ -101,7 +101,7 @@ app.get('/api/calendar', async (req, res) => {
 
 app.post('/api/calendar/events', async (req, res) => {
   if (!tokenStore['user']) return res.status(401).json({ error: 'Not authenticated' });
-  const { title, date, time, notes, repeat, frequency, endDate, count } = req.body;
+  const { title, date, time, notes, repeat, frequency, endDate, count, timeZone } = req.body;
   if (!title || !date) return res.status(400).json({ error: 'title and date are required' });
 
   try {
@@ -109,14 +109,15 @@ app.post('/api/calendar/events', async (req, res) => {
     const calendar = google.calendar({ version: 'v3', auth });
 
     const isAllDay = !time;
-    const startDateTime = isAllDay ? date : `${date}T${time}:00`;
-    const endDateTime = isAllDay ? date : `${date}T${time}:00`;
+    const tz = timeZone || 'UTC';
+    const startDateTime = `${date}T${time}:00`;
+    const endDateTime = `${date}T${time}:00`;
 
     const event = {
       summary: title,
       description: notes || '',
-      start: isAllDay ? { date } : { dateTime: startDateTime },
-      end: isAllDay ? { date } : { dateTime: endDateTime },
+      start: isAllDay ? { date } : { dateTime: startDateTime, timeZone: tz },
+      end: isAllDay ? { date } : { dateTime: endDateTime, timeZone: tz },
     };
 
     if (repeat && frequency) {
