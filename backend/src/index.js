@@ -105,6 +105,7 @@ app.get('/api/calendar', async (req, res) => {
       start: e.start.dateTime || e.start.date,
       end: e.end.dateTime || e.end.date,
       location: e.location,
+      recurringEventId: e.recurringEventId,
     }));
     res.json(items);
   } catch (err) {
@@ -155,6 +156,74 @@ app.post('/api/calendar/events', async (req, res) => {
     res.json({ id: created.data.id, link: created.data.htmlLink });
   } catch (err) {
     console.error('Create event error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/calendar/events/:eventId', async (req, res) => {
+  if (!tokenStore['user']) return res.status(401).json({ error: 'Not authenticated' });
+  const { eventId } = req.params;
+  const { scope, recurringEventId } = req.body || {};
+
+  try {
+    const auth = createAuthenticatedClient(tokenStore['user']);
+    const calendar = google.calendar({ version: 'v3', auth });
+
+    if (scope !== 'following' || !recurringEventId) {
+      try {
+        await calendar.events.delete({ calendarId: 'primary', eventId });
+      } catch (err) {
+        // Already gone (e.g. double-click, stale list) — treat as success, not an error.
+        const code = err.code || err.response?.status;
+        if (code !== 404 && code !== 410) throw err;
+      }
+      return res.json({ success: true });
+    }
+
+    // Deleting "this and all future events" without touching past occurrences: instead
+    // of deleting the series, shrink it by adding/replacing UNTIL on the master RRULE.
+    const instance = await calendar.events.get({ calendarId: 'primary', eventId });
+    const master = await calendar.events.get({ calendarId: 'primary', eventId: recurringEventId });
+    const recurrence = master.data.recurrence || [];
+    const instanceStart = instance.data.start || {};
+
+    // UNTIL must land strictly *before* this occurrence's start — RFC5545 treats UNTIL
+    // as inclusive, so using this occurrence's own start would keep it in the series.
+    // That also means every later occurrence (which starts even later) is excluded too,
+    // while every earlier occurrence (which already happened) is left untouched.
+    let until;
+    if (instanceStart.dateTime) {
+      const untilDate = new Date(new Date(instanceStart.dateTime).getTime() - 1000);
+      const pad = n => String(n).padStart(2, '0');
+      until = `${untilDate.getUTCFullYear()}${pad(untilDate.getUTCMonth() + 1)}${pad(untilDate.getUTCDate())}T${pad(untilDate.getUTCHours())}${pad(untilDate.getUTCMinutes())}${pad(untilDate.getUTCSeconds())}Z`;
+    } else if (instanceStart.date) {
+      // All-day event — UNTIL's value type must match DTSTART's (a bare DATE, no time
+      // component), so use YYYYMMDD for the day before this occurrence instead.
+      const [y, m, d] = instanceStart.date.split('-').map(Number);
+      const untilDate = new Date(Date.UTC(y, m - 1, d) - 24 * 60 * 60 * 1000);
+      const pad = n => String(n).padStart(2, '0');
+      until = `${untilDate.getUTCFullYear()}${pad(untilDate.getUTCMonth() + 1)}${pad(untilDate.getUTCDate())}`;
+    } else {
+      throw new Error('Recurring instance has no start date or dateTime');
+    }
+
+    // Replace the RRULE's UNTIL/COUNT (an RRULE may only have one or the other) with
+    // our computed UNTIL, leaving any other recurrence lines (EXDATE, etc.) untouched.
+    const updatedRecurrence = recurrence.map(line => {
+      if (!line.startsWith('RRULE:')) return line;
+      const parts = line.slice('RRULE:'.length).split(';').filter(p => !/^(UNTIL|COUNT)=/i.test(p));
+      parts.push(`UNTIL=${until}`);
+      return `RRULE:${parts.join(';')}`;
+    });
+
+    await calendar.events.patch({
+      calendarId: 'primary',
+      eventId: recurringEventId,
+      resource: { recurrence: updatedRecurrence },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete event error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
