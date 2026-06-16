@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import BudgetPlanner from './pages/BudgetPlanner'
+import AppLayout from './components/AppLayout'
 import './index.css'
 
 function App() {
@@ -24,7 +26,10 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
+        <Route path="/" element={isAuthenticated ? <AppLayout /> : <Navigate to="/login" />}>
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="budget" element={<BudgetPlanner />} />
+        </Route>
         <Route path="*" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} />} />
       </Routes>
     </BrowserRouter>
