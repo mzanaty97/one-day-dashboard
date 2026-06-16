@@ -27,6 +27,19 @@ function saveTokenStore() {
   fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokenStore), 'utf8');
 }
 
+// Budget store — persisted to budget.json so entries survive server restarts
+const BUDGET_FILE = path.join(__dirname, '../budget.json');
+let budgetEntries = [];
+try {
+  budgetEntries = JSON.parse(fs.readFileSync(BUDGET_FILE, 'utf8'));
+} catch (_) {
+  // File doesn't exist or is invalid JSON — start fresh
+}
+
+function saveBudgetStore() {
+  fs.writeFileSync(BUDGET_FILE, JSON.stringify(budgetEntries), 'utf8');
+}
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'One Day API is running' });
 });
@@ -155,6 +168,30 @@ app.post('/api/calendar/events', async (req, res) => {
     res.json({ id: created.data.id, link: created.data.htmlLink });
   } catch (err) {
     console.error('Create event error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/budget', (req, res) => {
+  if (!tokenStore['user']) return res.status(401).json({ error: 'Not authenticated' });
+  res.json(budgetEntries);
+});
+
+app.post('/api/budget', (req, res) => {
+  if (!tokenStore['user']) return res.status(401).json({ error: 'Not authenticated' });
+  const { type, amount, category, date, notes } = req.body;
+  if (type !== 'income' && type !== 'expense') return res.status(400).json({ error: "type must be 'income' or 'expense'" });
+  if (typeof amount !== 'number' || amount <= 0) return res.status(400).json({ error: 'amount must be a positive number' });
+  if (!category || typeof category !== 'string') return res.status(400).json({ error: 'category is required' });
+  if (!date || typeof date !== 'string') return res.status(400).json({ error: 'date is required' });
+
+  try {
+    const entry = { id: require('crypto').randomUUID(), type, amount, category, date, notes: notes || '' };
+    budgetEntries.push(entry);
+    saveBudgetStore();
+    res.json(entry);
+  } catch (err) {
+    console.error('Create budget entry error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
