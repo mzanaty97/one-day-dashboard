@@ -33,7 +33,8 @@ app.get('/health', (req, res) => {
 
 // Step 1: Send user to Google login
 app.get('/auth/google', (req, res) => {
-  const url = getAuthUrl();
+  const hasRefreshToken = !!(tokenStore['user'] && tokenStore['user'].refresh_token);
+  const url = getAuthUrl(!hasRefreshToken);
   res.redirect(url);
 });
 
@@ -42,8 +43,9 @@ app.get('/auth/google/callback', async (req, res) => {
   const { code } = req.query;
   try {
     const tokens = await getTokens(code);
-    // Store tokens with a simple key for now
-    tokenStore['user'] = tokens;
+    // Merge with existing tokens so we don't lose a previously issued refresh_token
+    // (Google only returns one when consent is freshly granted)
+    tokenStore['user'] = { ...tokenStore['user'], ...tokens };
     saveTokenStore();
     res.redirect(`${FRONTEND_URL}?auth=success`);
   } catch (err) {

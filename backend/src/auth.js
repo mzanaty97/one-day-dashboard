@@ -13,11 +13,11 @@ const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
 
-function getAuthUrl() {
+function getAuthUrl(forceConsent) {
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
-    prompt: 'consent',
+    prompt: forceConsent ? 'consent' : 'select_account',
   });
 }
 
