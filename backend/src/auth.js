@@ -14,11 +14,9 @@ const SCOPES = [
 ];
 
 function getAuthUrl(forceConsent) {
-  return oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: SCOPES,
-    prompt: forceConsent ? 'consent' : 'select_account',
-  });
+  const opts = { access_type: 'offline', scope: SCOPES };
+  if (forceConsent) opts.prompt = 'consent';
+  return oauth2Client.generateAuthUrl(opts);
 }
 
 async function getTokens(code) {

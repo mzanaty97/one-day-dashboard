@@ -27,6 +27,22 @@ function saveTokenStore() {
   fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokenStore), 'utf8');
 }
 
+// Google rejects a dead/revoked refresh_token with this error even though our
+// tokenStore still has one on disk — clear it so the next /auth/google forces consent.
+function isInvalidGrantError(err) {
+  return err.message === 'invalid_grant' || err.response?.data?.error === 'invalid_grant';
+}
+
+function handleGoogleApiError(err, res, label) {
+  console.error(`${label}:`, err.message);
+  if (isInvalidGrantError(err)) {
+    delete tokenStore['user'];
+    saveTokenStore();
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  res.status(500).json({ error: err.message });
+}
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'One Day API is running' });
 });
@@ -81,8 +97,7 @@ app.get('/api/emails', async (req, res) => {
     );
     res.json(messages);
   } catch (err) {
-    console.error('Email error:', err.message);
-    res.status(500).json({ error: err.message });
+    handleGoogleApiError(err, res, 'Email error');
   }
 });
 
@@ -111,8 +126,7 @@ app.get('/api/calendar', async (req, res) => {
     }));
     res.json(items);
   } catch (err) {
-    console.error('Calendar error:', err.message);
-    res.status(500).json({ error: err.message });
+    handleGoogleApiError(err, res, 'Calendar error');
   }
 });
 
@@ -157,8 +171,7 @@ app.post('/api/calendar/events', async (req, res) => {
     const created = await calendar.events.insert({ calendarId: 'primary', resource: event });
     res.json({ id: created.data.id, link: created.data.htmlLink });
   } catch (err) {
-    console.error('Create event error:', err.message);
-    res.status(500).json({ error: err.message });
+    handleGoogleApiError(err, res, 'Create event error');
   }
 });
 
@@ -225,8 +238,7 @@ app.delete('/api/calendar/events/:eventId', async (req, res) => {
     });
     res.json({ success: true });
   } catch (err) {
-    console.error('Delete event error:', err.message);
-    res.status(500).json({ error: err.message });
+    handleGoogleApiError(err, res, 'Delete event error');
   }
 });
 
