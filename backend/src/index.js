@@ -196,6 +196,21 @@ app.post('/api/budget', (req, res) => {
   }
 });
 
+app.delete('/api/budget/:id', (req, res) => {
+  if (!tokenStore['user']) return res.status(401).json({ error: 'Not authenticated' });
+  const index = budgetEntries.findIndex(e => e.id === req.params.id);
+  if (index === -1) return res.status(404).json({ error: 'Not found' });
+
+  try {
+    budgetEntries.splice(index, 1);
+    saveBudgetStore();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete budget entry error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // SPA fallback — serve frontend build for any non-API route
 const frontendDist = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendDist));
