@@ -269,10 +269,89 @@ function AddReminderCard({ onCreated }) {
   )
 }
 
+const smallButtonStyle = {
+  padding: '5px 12px',
+  borderRadius: '6px',
+  border: '1px solid #2a2a3a',
+  background: 'transparent',
+  color: '#ccc',
+  cursor: 'pointer',
+  fontSize: '0.78rem',
+}
+
+const smallButtonDangerStyle = {
+  ...smallButtonStyle,
+  borderColor: '#7f1d1d',
+  color: '#f87171',
+}
+
+function DeleteIconButton({ onClick, disabled }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title="Delete event"
+      aria-label="Delete event"
+      style={{
+        background: 'transparent',
+        border: 'none',
+        cursor: disabled ? 'default' : 'pointer',
+        color: disabled ? '#444' : (hover ? '#f87171' : '#666'),
+        fontSize: '1.1rem',
+        lineHeight: 1,
+        padding: '0 0 0 8px',
+        flexShrink: 0,
+      }}
+    >
+      ×
+    </button>
+  )
+}
+
+function EventDeleteConfirm({ event, loading, error, onCancel, onConfirm }) {
+  const isRecurring = !!event.recurringEventId
+  return (
+    <div style={{ marginTop: '8px', background: '#12121a', borderRadius: '8px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <p style={{ fontSize: '0.8rem', color: '#ccc', margin: 0 }}>
+        {isRecurring ? 'Delete this recurring event?' : 'Delete this event?'}
+      </p>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {isRecurring ? (
+          <>
+            <button type="button" disabled={loading} onClick={() => onConfirm('single')} style={smallButtonStyle}>
+              This event only
+            </button>
+            <button type="button" disabled={loading} onClick={() => onConfirm('following')} style={smallButtonStyle}>
+              This and all future events
+            </button>
+          </>
+        ) : (
+          <button type="button" disabled={loading} onClick={() => onConfirm('single')} style={smallButtonDangerStyle}>
+            Confirm
+          </button>
+        )}
+        <button type="button" disabled={loading} onClick={onCancel} style={smallButtonStyle}>
+          Cancel
+        </button>
+      </div>
+      {loading && <p style={{ fontSize: '0.75rem', color: '#888', margin: 0 }}>Deleting...</p>}
+      {error && <p style={{ fontSize: '0.75rem', color: '#f87171', margin: 0 }}>{error}</p>}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [emails, setEmails] = useState(null)
   const [events, setEvents] = useState(null)
   const [error, setError] = useState(null)
+  const [confirmingId, setConfirmingId] = useState(null)
+  const [deleteBusyId, setDeleteBusyId] = useState(null)
+  const [deleteError, setDeleteError] = useState(null)
+  const [deleteFeedback, setDeleteFeedback] = useState(null)
 
   async function handleLogout() {
     await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' })
@@ -288,6 +367,42 @@ export default function Dashboard() {
       })
       .then(setEvents)
       .catch(() => setError('Could not load calendar'))
+  }
+
+  function openDeleteConfirm(eventId) {
+    setConfirmingId(eventId)
+    setDeleteError(null)
+  }
+
+  function cancelDeleteConfirm() {
+    setConfirmingId(null)
+    setDeleteError(null)
+  }
+
+  async function handleDeleteEvent(event, scope) {
+    setDeleteBusyId(event.id)
+    setDeleteError(null)
+    setDeleteFeedback(null)
+    try {
+      const body = scope === 'following'
+        ? { scope, recurringEventId: event.recurringEventId }
+        : { scope: 'single' }
+      const res = await fetch(`${API}/api/calendar/events/${event.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to delete event')
+      setConfirmingId(null)
+      setDeleteFeedback({ type: 'success', message: 'Event deleted.' })
+      loadCalendar()
+    } catch (err) {
+      setDeleteError(err.message)
+    } finally {
+      setDeleteBusyId(null)
+    }
   }
 
   useEffect(() => {
@@ -364,6 +479,11 @@ export default function Dashboard() {
         {/* Calendar */}
         <div style={{ background: '#1a1a24', borderRadius: '12px', padding: '24px' }}>
           <h2 style={{ fontSize: '1rem', color: '#888', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Calendar</h2>
+          {deleteFeedback && (
+            <p style={{ fontSize: '0.8rem', color: deleteFeedback.type === 'success' ? '#4ade80' : '#f87171', marginTop: 0, marginBottom: '12px' }}>
+              {deleteFeedback.message}
+            </p>
+          )}
           {!events ? (
             <p style={{ color: '#555' }}>Loading...</p>
           ) : events.error ? (
@@ -374,9 +494,28 @@ export default function Dashboard() {
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {events.map(event => (
                 <li key={event.id} style={{ borderBottom: '1px solid #2a2a3a', paddingBottom: '12px' }}>
-                  <p style={{ fontWeight: '600', fontSize: '0.9rem', marginBottom: '2px', color: '#e0e0e0' }}>{event.summary}</p>
-                  <p style={{ fontSize: '0.8rem', color: '#888' }}>{formatDate(event.start)}</p>
-                  {event.location && <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '2px' }}>{event.location}</p>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: '600', fontSize: '0.9rem', marginBottom: '2px', color: '#e0e0e0' }}>{event.summary}</p>
+                      <p style={{ fontSize: '0.8rem', color: '#888' }}>{formatDate(event.start)}</p>
+                      {event.location && <p style={{ fontSize: '0.8rem', color: '#666', marginTop: '2px' }}>{event.location}</p>}
+                    </div>
+                    {confirmingId !== event.id && (
+                      <DeleteIconButton
+                        onClick={() => openDeleteConfirm(event.id)}
+                        disabled={deleteBusyId === event.id}
+                      />
+                    )}
+                  </div>
+                  {confirmingId === event.id && (
+                    <EventDeleteConfirm
+                      event={event}
+                      loading={deleteBusyId === event.id}
+                      error={deleteError}
+                      onCancel={cancelDeleteConfirm}
+                      onConfirm={(scope) => handleDeleteEvent(event, scope)}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
